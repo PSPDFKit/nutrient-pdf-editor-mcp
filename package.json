@@ -1,0 +1,66 @@
+{
+  "name": "@nutrient-sdk/nutrient-pdf-editor-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Nutrient PDF Editor — MCP server exposing the Nutrient Web Viewer to Claude Cowork",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PSPDFKit/nutrient-pdf-editor-mcp"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "dist/index.js",
+  "bin": {
+    "nutrient-pdf-editor-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist build",
+    "build:viewer": "INPUT=src/viewer/index.html vite build && mv dist/src/viewer/index.html dist/mcp-app.html && rm -rf dist/src",
+    "build:server": "node scripts/build-server.mjs",
+    "build:mcpb": "node scripts/build-mcpb.mjs",
+    "prebuild": "npm run clean",
+    "build": "node scripts/verify-license-env.mjs && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.viewer.json && npm run build:viewer && npm run build:server && node scripts/verify-dist.mjs && node scripts/verify-versions.mjs && node scripts/verify-server-name.mjs && node scripts/verify-registry-sync.mjs && node scripts/verify-manifest-tools.mjs && npm run build:mcpb",
+    "verify:license-env": "node scripts/verify-license-env.mjs",
+    "test": "vitest run",
+    "test:e2e": "vitest run -c vitest.e2e.config.ts",
+    "dev": "concurrently \"vite build --watch\" \"node scripts/build-server.mjs --watch\" \"nodemon --watch dist dist/index.js --stdio\"",
+    "ping": "node dist/index.js --ping",
+    "verify:versions": "node scripts/verify-versions.mjs",
+    "verify:server-name": "node scripts/verify-server-name.mjs",
+    "lint": "eslint src/ && prettier --check \"src/**/*.ts\"",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@nutrient-sdk/viewer": "^1.14.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
+    "@types/node": "^24.12.2",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
+    "@typescript-eslint/parser": "^8.59.2",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.3.0",
+    "eslint-config-prettier": "^10.1.8",
+    "nodemon": "^3.1.7",
+    "playwright": "^1.59.1",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.10",
+    "vite-plugin-singlefile": "^2.3.0",
+    "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "tmp": "^0.2.4",
+    "ip-address": "^10.1.1"
+  }
+}

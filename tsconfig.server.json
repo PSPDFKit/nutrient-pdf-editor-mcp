@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "lib": ["ES2023"],
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": ["src/mcp/**/*", "src/contract/**/*"]
+}

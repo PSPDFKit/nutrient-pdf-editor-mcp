@@ -1,0 +1,76 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/mcpb/main/schemas/mcpb-manifest-latest.schema.json",
+  "manifest_version": "0.3",
+  "name": "nutrient-pdf-editor-mcp",
+  "display_name": "Nutrient PDF Editor",
+  "version": "1.0.0",
+  "description": "View, annotate, fill forms, and redact PDFs directly from Claude.",
+  "long_description": "Highlight, fill forms, redact, and review PDFs directly from Claude. The Nutrient Web Viewer renders inside your conversation so you and Claude share the same view — and every edit saves straight back to the file on your machine, without leaving the chat.",
+  "author": {
+    "name": "Nutrient",
+    "email": "ai-team@nutrient.io",
+    "url": "https://www.nutrient.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PSPDFKit/nutrient-pdf-editor-mcp"
+  },
+  "homepage": "https://www.nutrient.io",
+  "documentation": "https://github.com/PSPDFKit/nutrient-pdf-editor-mcp#readme",
+  "support": "https://github.com/PSPDFKit/nutrient-pdf-editor-mcp/issues",
+  "icon": "icon.png",
+  "screenshots": [
+    "assets/screenshots/01-extract-and-highlight.png",
+    "assets/screenshots/02-redact-pii.png",
+    "assets/screenshots/03-add-signature.png"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js", "--stdio"],
+      "env": {
+        "NUTRIENT_SHARED_STATE": "1"
+      }
+    }
+  },
+  "tools": [
+    { "name": "open_document", "description": "Open a PDF/DOCX/XLSX/PPTX/PNG/JPG/TIFF in the embedded viewer." },
+    { "name": "close_document", "description": "Tear down the SDK and clear session state." },
+    { "name": "get_view_state", "description": "Return current page, page count, and document path." },
+    { "name": "set_view_state", "description": "Navigate, scroll, or select within the open document." },
+    { "name": "search_exact_text", "description": "Exact-text search with optional page scope." },
+    { "name": "read_document_information", "description": "Read page count, title, and permissions." },
+    { "name": "read_page_info", "description": "Read width, height, and rotation for a page." },
+    { "name": "get_page_image", "description": "Render a page as a PNG image content block plus dimension metadata." },
+    { "name": "read_text", "description": "Read plain text, with optional 0-based page range." },
+    { "name": "create_annotation", "description": "Create one of 10 annotation types." },
+    { "name": "read_annotations", "description": "Read annotations, filterable by page and type." },
+    { "name": "update_annotation", "description": "Patch an annotation by id." },
+    { "name": "delete_annotation", "description": "Delete an annotation by id." },
+    { "name": "apply_annotations", "description": "Apply queued redactions (gated by chat confirmation)." },
+    { "name": "read_form_fields", "description": "Read form field values with optional page scope." },
+    { "name": "update_form_field_values", "description": "Fill text, checkbox, radio, combobox, or listbox fields." }
+  ],
+  "keywords": [
+    "pdf",
+    "pdf-editor",
+    "viewer",
+    "annotations",
+    "redaction",
+    "forms",
+    "nutrient",
+    "document"
+  ],
+  "license": "MIT",
+  "privacy_policies": [
+    "https://github.com/PSPDFKit/nutrient-pdf-editor-mcp#privacy-policy"
+  ],
+  "compatibility": {
+    "runtimes": {
+      "node": ">=24"
+    },
+    "platforms": ["darwin", "linux"]
+  }
+}
