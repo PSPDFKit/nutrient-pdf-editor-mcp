@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.DS_Store
+*.zip
+*.mcpb
+*.log
+.worktrees/
+
+# Environment files — only the .example template is committed.
+.env
+.env.*
+!.env.example
