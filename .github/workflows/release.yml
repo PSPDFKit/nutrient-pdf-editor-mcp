@@ -25,16 +25,12 @@ jobs:
         env:
           VITE_NUTRIENT_LICENSE_KEY: ${{ secrets.VITE_NUTRIENT_LICENSE_KEY }}
 
-      - name: Rename asset to stable filename
-        run: |
-          cp build/nutrient-pdf-editor-mcp-*.mcpb build/nutrient-pdf-editor-mcp.mcpb
-
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ github.ref_name }}" \
-            build/nutrient-pdf-editor-mcp.mcpb \
+            "$(echo build/nutrient-pdf-editor-mcp-*.mcpb)#nutrient-pdf-editor-mcp.mcpb" \
             --title "${{ github.ref_name }}" \
             --notes-file CHANGELOG.md \
             --verify-tag
