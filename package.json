@@ -1,6 +1,6 @@
 {
   "name": "@nutrient-sdk/nutrient-pdf-editor-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Nutrient PDF Editor — MCP server exposing the Nutrient Web Viewer to Claude Cowork",
   "license": "MIT",
