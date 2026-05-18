@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nutrient Viewer MCP</title>
+    <style>
+      html, body { width: 100%; height: 100vh; margin: 0; overflow: hidden; font-family: system-ui, sans-serif; }
+      body { display: flex; flex-direction: column; }
+      #viewer { width: 100%; flex: 1; position: relative; }
+      /* Loading indicator shown only while data-state="loading" is set.
+         The attribute is removed by main.ts once the SDK finishes loading
+         (or fails with an error that renders its own overlay). This prevents
+         the "Loading…" text from flashing back when an in-place document switch
+         temporarily empties the viewer div mid-swap. */
+      #viewer[data-state="loading"]::before {
+        content: "nutrient";
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #aaa;
+        font: 600 8vmin/1 system-ui, sans-serif;
+        letter-spacing: -0.04em;
+        pointer-events: none;
+        user-select: none;
+        animation: nutrient-loading-pulse 1.6s ease-in-out infinite;
+      }
+      #viewer[data-state="loading"]::after {
+        content: "Loading…";
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        margin-top: 6vmin;
+        text-align: center;
+        color: #aaa;
+        opacity: 0.6;
+        font: 500 14px system-ui, sans-serif;
+        letter-spacing: 0.04em;
+        pointer-events: none;
+        user-select: none;
+      }
+      @keyframes nutrient-loading-pulse {
+        0%, 100% { opacity: 0.35; }
+        50% { opacity: 0.15; }
+      }
+      /* Rendered by renderUnloadedDocumentMessage in main.ts when the iframe
+         is restored from a prior conversation but the new MCP server has no
+         document open in its session. Replaces the empty-state placeholder
+         with an explanatory message + a re-open hint. Colors adapt to the
+         host's color-scheme via prefers-color-scheme; the iframe doesn't
+         get a guaranteed CSS-variable channel from every host so we keep
+         the contract local. */
+      .nutrient-viewer-fallback {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        text-align: center;
+        color: #4b5563;
+        background: transparent;
+        font-family: system-ui, sans-serif;
+      }
+      .nutrient-viewer-fallback h2 {
+        margin: 0 0 0.5rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #111827;
+      }
+      .nutrient-viewer-fallback p {
+        margin: 0;
+        max-width: 28rem;
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+      .nutrient-viewer-fallback code {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+        font-size: 0.85em;
+        padding: 1px 4px;
+        border-radius: 3px;
+        background: rgba(0, 0, 0, 0.08);
+        color: inherit;
+      }
+      @media (prefers-color-scheme: dark) {
+        .nutrient-viewer-fallback {
+          color: #d1d5db;
+        }
+        .nutrient-viewer-fallback h2 {
+          color: #f9fafb;
+        }
+        .nutrient-viewer-fallback code {
+          background: rgba(255, 255, 255, 0.12);
+        }
+      }
+      /* Temporary "update available" popover, rendered top-right by
+         renderUpdateToast in update-toast.ts. position:fixed escapes the
+         flex column; it overlays the viewer without reflowing it. */
+      .nutrient-update-toast {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 2147483647;
+        max-width: 320px;
+        padding: 14px 16px;
+        box-sizing: border-box;
+        background: #ffffff;
+        color: #374151;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+        font-family: system-ui, sans-serif;
+        animation: nutrient-toast-in 0.28s ease-out;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      .nutrient-update-toast.is-leaving {
+        opacity: 0;
+        transform: translateX(12px);
+      }
+      .nutrient-update-toast h3 {
+        margin: 0 8px 6px 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #111827;
+      }
+      .nutrient-update-toast p {
+        margin: 0 0 10px;
+        font-size: 0.85rem;
+        line-height: 1.45;
+      }
+      .nutrient-update-toast-link {
+        display: inline-block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #4537de;
+        text-decoration: none;
+      }
+      .nutrient-update-toast-link:hover {
+        text-decoration: underline;
+      }
+      .nutrient-update-toast-close {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        padding: 0;
+        width: 22px;
+        height: 22px;
+        border: 0;
+        background: transparent;
+        color: #9ca3af;
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .nutrient-update-toast-close:hover {
+        color: #4b5563;
+      }
+      @keyframes nutrient-toast-in {
+        from { opacity: 0; transform: translateX(16px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @media (prefers-color-scheme: dark) {
+        .nutrient-update-toast {
+          background: #1f2937;
+          color: #d1d5db;
+          border-color: rgba(255, 255, 255, 0.12);
+        }
+        .nutrient-update-toast h3 {
+          color: #f9fafb;
+        }
+        .nutrient-update-toast-link {
+          color: #a5b4fc;
+        }
+        .nutrient-update-toast-close {
+          color: #6b7280;
+        }
+        .nutrient-update-toast-close:hover {
+          color: #d1d5db;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewer" data-state="loading"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

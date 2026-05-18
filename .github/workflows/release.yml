@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify license key secret is present
+        env:
+          LICENSE_KEY: ${{ secrets.VITE_NUTRIENT_LICENSE_KEY }}
+        run: |
+          if [ -z "$LICENSE_KEY" ]; then
+            echo "::error::VITE_NUTRIENT_LICENSE_KEY secret is empty or unset — a release built without it ships a watermarked trial-mode viewer."
+            exit 1
+          fi
+          echo "License key secret present (${#LICENSE_KEY} chars)."
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+        env:
+          VITE_NUTRIENT_LICENSE_KEY: ${{ secrets.VITE_NUTRIENT_LICENSE_KEY }}
+
+      - name: Rename asset to stable filename
+        run: cp build/nutrient-pdf-editor-mcp-*.mcpb build/nutrient-pdf-editor-mcp.mcpb
+
+      - name: Extract release notes for this version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" { capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::No CHANGELOG.md section found for version $version"
+            exit 1
+          fi
+          cat release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            build/nutrient-pdf-editor-mcp.mcpb \
+            --title "${{ github.ref_name }}" \
+            --notes-file release-notes.md \
+            --verify-tag
