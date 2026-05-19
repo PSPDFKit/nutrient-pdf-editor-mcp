@@ -2,6 +2,14 @@
 
 All notable changes to Nutrient PDF Editor MCP are documented here.
 
+## [1.1.5] — 2026-05-20
+
+### Changed
+- Viewer reflects the host app's theme on connect: the iframe's own
+  overlays (loading state, unloaded-document fallback, update toast)
+  render in the correct theme from first paint, and the SDK is loaded
+  with the host theme explicitly instead of `AUTO`.
+
 ## [1.1.4] — 2026-05-18
 
 ### Changed
