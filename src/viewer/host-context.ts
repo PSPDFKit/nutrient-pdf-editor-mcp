@@ -24,7 +24,6 @@
 
 import {
   App,
-  applyDocumentTheme,
   applyHostFonts,
   applyHostStyleVariables,
   type McpUiHostContext
@@ -75,7 +74,17 @@ function logDisplayModeAdvertisement(ctx: McpUiHostContext | undefined, source: 
 
 export function applyHostContext(ctx: McpUiHostContext) {
   logDisplayModeAdvertisement(ctx, "host-context-changed");
-  if (ctx.theme) applyDocumentTheme(ctx.theme);
+  // Reflect the host theme onto <html> as `data-theme` — the signal our own
+  // chrome (loading state, unloaded-document fallback, update toast) themes
+  // off. We set ONLY the attribute, deliberately not `color-scheme`: this
+  // iframe is 100% the Nutrient viewer, the SDK themes its own UI from
+  // `theme: DARK` (see `nutrientThemeFromHost`), and a document-wide
+  // `color-scheme: dark` would flip the inherited `CanvasText` default —
+  // which breaks SDK components that inherit their text color (the note
+  // popover, whose background is a fixed light pastel, is one). ext-apps'
+  // `applyDocumentTheme` sets both attribute and `color-scheme`, so we don't
+  // use it.
+  if (ctx.theme) document.documentElement.setAttribute("data-theme", ctx.theme);
   if (ctx.styles?.variables) applyHostStyleVariables(ctx.styles.variables);
   if (ctx.styles?.css?.fonts) applyHostFonts(ctx.styles.css.fonts);
   if (hasNonZeroContainerDimensions(ctx) && pendingContainerDimWaiters.length > 0) {
@@ -88,6 +97,33 @@ export function applyHostContext(ctx: McpUiHostContext) {
   // negotiated size while Cowork was off-screen, the iframe stays slim until
   // we re-request. negotiateFrameSize is idempotent and self-throttled.
   void negotiateFrameSize();
+}
+
+/**
+ * Map the host's theme to a Nutrient SDK theme value (the SDK's `Theme` enum
+ * members are the string literals `"LIGHT"` / `"DARK"`).
+ *
+ * The MCP Apps host context theme is a strict `"light" | "dark" | undefined`
+ * union. We map it *explicitly* rather than using the SDK's `AUTO`:
+ *
+ *   - `AUTO` resolves against the OS `prefers-color-scheme` media query.
+ *   - `ctx.theme` is the *host app's* theme, which can differ from the OS
+ *     (dark Claude on a light macOS, and vice versa).
+ *   - `applyHostContext` reflects `ctx.theme` onto `<html data-theme>` for our
+ *     own chrome. Driving the SDK theme off the same source keeps them
+ *     consistent; `AUTO` would re-introduce a theme desync on the OS axis.
+ *
+ * `"light"` and `undefined` both map to `LIGHT` (the SDK default).
+ *
+ * Note: the SDK has no clean runtime theme swap, so this is only consulted at
+ * `NutrientSDK.load` time. A later `onhostcontextchanged` theme change still
+ * updates `<html data-theme>`, but the SDK chrome keeps its load-time theme
+ * until the next document load.
+ */
+export function nutrientThemeFromHost(
+  hostTheme: McpUiHostContext["theme"]
+): "LIGHT" | "DARK" {
+  return hostTheme === "dark" ? "DARK" : "LIGHT";
 }
 
 // Asks the host to switch to fullscreen iff `availableDisplayModes` includes

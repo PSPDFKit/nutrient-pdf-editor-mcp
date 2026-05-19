@@ -35,6 +35,7 @@ import {
   awaitNonZeroContainerDimensions,
   preferFullscreenIfAvailable,
   negotiateFrameSize,
+  nutrientThemeFromHost,
   __resetHostContextForTesting
 } from "./host-context.js";
 // Re-export for tests that import these from main.ts (backward compat).
@@ -261,6 +262,14 @@ if (typeof window !== "undefined") {
       return;
     }
     await app.connect();
+    // `connect()` populates the initial host context but does NOT fire
+    // `onhostcontextchanged`. Apply it once so theme (`<html data-theme>`),
+    // host fonts, and style variables reflect the host from first paint —
+    // without this the iframe's own overlays (loading state,
+    // unloaded-document fallback, update toast) render light on a dark host
+    // until the host happens to push a context change.
+    const initialHostContext = app.getHostContext();
+    if (initialHostContext) applyHostContext(initialHostContext);
     // preferFullscreenIfAvailable and negotiateFrameSize live in host-context.ts.
     // logDisplayModeAdvertisement is internal to host-context.ts and is called there.
     await preferFullscreenIfAvailable();
@@ -443,6 +452,11 @@ export async function openDocumentFromPath(documentPath: string): Promise<void> 
         container: viewerEl,
         document: bytes,
         baseUrl: ASSET_BASE_URL,
+        // Drive the SDK chrome theme off the host app's theme — the same
+        // source `applyHostContext` reflects onto `<html data-theme>`.
+        // Mapped explicitly (never `Theme.AUTO`, which follows the OS rather
+        // than the host). See `nutrientThemeFromHost` for the rationale.
+        theme: nutrientThemeFromHost(app.getHostContext()?.theme),
         // Drop the download (`export-pdf`) and `print` toolbar buttons. The MCP
         // server is the source of truth for document bytes; viewer-side
         // download/print would bypass the auto-save / write_document_bytes path

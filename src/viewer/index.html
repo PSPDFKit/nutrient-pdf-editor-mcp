@@ -49,10 +49,16 @@
       /* Rendered by renderUnloadedDocumentMessage in main.ts when the iframe
          is restored from a prior conversation but the new MCP server has no
          document open in its session. Replaces the empty-state placeholder
-         with an explanatory message + a re-open hint. Colors adapt to the
-         host's color-scheme via prefers-color-scheme; the iframe doesn't
-         get a guaranteed CSS-variable channel from every host so we keep
-         the contract local. */
+         with an explanatory message + a re-open hint.
+
+         Dark-mode colors key off `:root[data-theme="dark"]`, the attribute
+         `applyHostContext` (host-context.ts) sets on <html> from the *host*
+         app's theme — NOT `@media (prefers-color-scheme: dark)`, which
+         follows the OS and can disagree with the host (dark Claude on a
+         light macOS). Keeping these overlays on the same source as the SDK
+         chrome theme avoids a theme desync. The iframe doesn't get a
+         guaranteed CSS-variable channel from every host, so we keep the
+         contract local. */
       .nutrient-viewer-fallback {
         position: absolute;
         inset: 0;
@@ -86,16 +92,14 @@
         background: rgba(0, 0, 0, 0.08);
         color: inherit;
       }
-      @media (prefers-color-scheme: dark) {
-        .nutrient-viewer-fallback {
-          color: #d1d5db;
-        }
-        .nutrient-viewer-fallback h2 {
-          color: #f9fafb;
-        }
-        .nutrient-viewer-fallback code {
-          background: rgba(255, 255, 255, 0.12);
-        }
+      :root[data-theme="dark"] .nutrient-viewer-fallback {
+        color: #d1d5db;
+      }
+      :root[data-theme="dark"] .nutrient-viewer-fallback h2 {
+        color: #f9fafb;
+      }
+      :root[data-theme="dark"] .nutrient-viewer-fallback code {
+        background: rgba(255, 255, 255, 0.12);
       }
       /* Temporary "update available" popover, rendered top-right by
          renderUpdateToast in update-toast.ts. position:fixed escapes the
@@ -163,24 +167,33 @@
         from { opacity: 0; transform: translateX(16px); }
         to { opacity: 1; transform: translateX(0); }
       }
-      @media (prefers-color-scheme: dark) {
-        .nutrient-update-toast {
-          background: #1f2937;
-          color: #d1d5db;
-          border-color: rgba(255, 255, 255, 0.12);
-        }
-        .nutrient-update-toast h3 {
-          color: #f9fafb;
-        }
-        .nutrient-update-toast-link {
-          color: #a5b4fc;
-        }
-        .nutrient-update-toast-close {
-          color: #6b7280;
-        }
-        .nutrient-update-toast-close:hover {
-          color: #d1d5db;
-        }
+      /* Dark-mode toast colors follow the host theme via `data-theme` — see
+         the rationale on `.nutrient-viewer-fallback` above. */
+      :root[data-theme="dark"] .nutrient-update-toast {
+        background: #1f2937;
+        color: #d1d5db;
+        border-color: rgba(255, 255, 255, 0.12);
+      }
+      :root[data-theme="dark"] .nutrient-update-toast h3 {
+        color: #f9fafb;
+      }
+      :root[data-theme="dark"] .nutrient-update-toast-link {
+        color: #a5b4fc;
+      }
+      :root[data-theme="dark"] .nutrient-update-toast-close {
+        color: #6b7280;
+      }
+      :root[data-theme="dark"] .nutrient-update-toast-close:hover {
+        color: #d1d5db;
+      }
+      /* Loading-screen backdrop. <html>/<body> carry no background, so the
+         brief pre-mount "nutrient / Loading…" overlay shows the page
+         backdrop. We deliberately do NOT set `color-scheme` on this iframe
+         (it would flip the inherited CanvasText default and break SDK
+         components that inherit their text color), so give the dark host a
+         dark backdrop explicitly. Light host keeps the default white. */
+      :root[data-theme="dark"] {
+        background: #1f2937;
       }
     </style>
   </head>
