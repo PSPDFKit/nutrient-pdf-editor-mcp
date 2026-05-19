@@ -410,6 +410,31 @@ describe("openDocumentFromPath", () => {
     expect(mockLoad).toHaveBeenCalledTimes(1);
   });
 
+  it("passes theme DARK to SDK.load when the host context theme is dark", async () => {
+    mockHostContextRef.current = { theme: "dark" };
+
+    await openDocumentFromPath("/path/to/doc.pdf");
+
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+    expect(mockLoad.mock.calls[0]?.[0].theme).toBe("DARK");
+  });
+
+  it("passes theme LIGHT to SDK.load when the host context theme is light", async () => {
+    mockHostContextRef.current = { theme: "light" };
+
+    await openDocumentFromPath("/path/to/doc.pdf");
+
+    expect(mockLoad.mock.calls[0]?.[0].theme).toBe("LIGHT");
+  });
+
+  it("passes theme LIGHT to SDK.load (the SDK default) when the host advertises no theme", async () => {
+    mockHostContextRef.current = undefined;
+
+    await openDocumentFromPath("/path/to/doc.pdf");
+
+    expect(mockLoad.mock.calls[0]?.[0].theme).toBe("LIGHT");
+  });
+
   it("stores the returned instance from SDK.load", async () => {
     const mockInstance = {
       ...MOCK_INSTANCE_BASE,
