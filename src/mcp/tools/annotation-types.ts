@@ -123,9 +123,25 @@ export type AnnotationInput = z.infer<typeof AnnotationInput>;
 
 /**
  * Loose schema for annotation patches (updates).
- * SDK handles type coercion, so we accept any field.
+ * SDK handles type coercion, so we accept any field. Keys whose friendly
+ * shape diverges from the SDK shape are declared explicitly so the calling
+ * model sees them in the JSON schema; the viewer translates them to SDK
+ * shapes (see src/viewer/annotation-operations.ts).
  */
-export const AnnotationPatch = z.object({}).passthrough();
+export const AnnotationPatch = z
+  .object({
+    text: z
+      .union([z.string(), z.object({ format: z.enum(["plain", "xhtml"]), value: z.string() })])
+      .optional()
+      .describe(
+        'New text content for note/text annotations. A plain string is treated as { format: "plain", value }, matching create_annotation.'
+      ),
+    contents: z
+      .string()
+      .optional()
+      .describe("Alias for text — the key read_annotations returns text content under.")
+  })
+  .passthrough();
 
 export type AnnotationPatch = z.infer<typeof AnnotationPatch>;
 

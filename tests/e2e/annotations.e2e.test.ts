@@ -78,6 +78,53 @@ describe("annotation CRUD", () => {
     });
   });
 
+  it("note: patches text with a plain string and the SDK object shape", async () => {
+    await withScenario({ roots: FIXTURE_ROOTS }, async (ctx) => {
+      await openAndWait(ctx, SAMPLE_PDF);
+
+      const id = await createAnnotation(ctx, {
+        type: "note",
+        pageIndex: 0,
+        rect: { left: 50, top: 50, width: 24, height: 24 },
+        text: "original"
+      });
+
+      // Plain string — the create_annotation shape — must work on update too.
+      const stringPatch = (await ctx.client.callTool("update_annotation", {
+        id,
+        patch: { text: "updated via string" }
+      })) as {
+        isError?: boolean;
+        structuredContent?: { annotation?: { text?: { format?: string; value?: string } } };
+      };
+      expect(stringPatch.isError).toBeFalsy();
+      expect(stringPatch.structuredContent?.annotation?.text?.value).toBe("updated via string");
+      expect(stringPatch.structuredContent?.annotation?.text?.format).toBe("plain");
+
+      // The raw SDK object shape keeps working.
+      const objectPatch = (await ctx.client.callTool("update_annotation", {
+        id,
+        patch: { text: { format: "plain", value: "updated via object" } }
+      })) as {
+        isError?: boolean;
+        structuredContent?: { annotation?: { text?: { value?: string } } };
+      };
+      expect(objectPatch.isError).toBeFalsy();
+      expect(objectPatch.structuredContent?.annotation?.text?.value).toBe("updated via object");
+
+      // The contents alias — the read_annotations key — lands on text too,
+      // and round-trips through a read.
+      const contentsPatch = (await ctx.client.callTool("update_annotation", {
+        id,
+        patch: { contents: "updated via contents" }
+      })) as { isError?: boolean };
+      expect(contentsPatch.isError).toBeFalsy();
+
+      const afterUpdate = await readAnnotations(ctx, { pageIndex: 0 });
+      expect(afterUpdate.find((a) => a.id === id)?.contents).toBe("updated via contents");
+    });
+  });
+
   it("update_annotation returns an error for an unknown id", async () => {
     await withScenario({ roots: FIXTURE_ROOTS }, async (ctx) => {
       await openAndWait(ctx, SAMPLE_PDF);
