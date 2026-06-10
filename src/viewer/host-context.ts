@@ -120,9 +120,7 @@ export function applyHostContext(ctx: McpUiHostContext) {
  * updates `<html data-theme>`, but the SDK chrome keeps its load-time theme
  * until the next document load.
  */
-export function nutrientThemeFromHost(
-  hostTheme: McpUiHostContext["theme"]
-): "LIGHT" | "DARK" {
+export function nutrientThemeFromHost(hostTheme: McpUiHostContext["theme"]): "LIGHT" | "DARK" {
   return hostTheme === "dark" ? "DARK" : "LIGHT";
 }
 
