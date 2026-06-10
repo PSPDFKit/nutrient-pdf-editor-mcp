@@ -45,10 +45,8 @@ import {
   ASSET_BASE_URL,
   getAppName,
   NUTRIENT_LICENSE_KEY,
-  getRenewalUrlFromWindow,
-  getUpdateInfoFromWindow
+  getRenewalUrlFromWindow
 } from "./window-globals.js";
-import { renderUpdateToast } from "./update-toast.js";
 // Re-export for tests that import getRenewalUrlFromWindow from main.ts.
 export { getRenewalUrlFromWindow } from "./window-globals.js";
 // error-fallbacks: DOM overlays + bridge error forwarding
@@ -266,7 +264,7 @@ if (typeof window !== "undefined") {
     // `onhostcontextchanged`. Apply it once so theme (`<html data-theme>`),
     // host fonts, and style variables reflect the host from first paint —
     // without this the iframe's own overlays (loading state,
-    // unloaded-document fallback, update toast) render light on a dark host
+    // unloaded-document fallback) render light on a dark host
     // until the host happens to push a context change.
     const initialHostContext = app.getHostContext();
     if (initialHostContext) applyHostContext(initialHostContext);
@@ -274,9 +272,6 @@ if (typeof window !== "undefined") {
     // logDisplayModeAdvertisement is internal to host-context.ts and is called there.
     await preferFullscreenIfAvailable();
     await negotiateFrameSize();
-    // Surface the runtime update notice, if the server injected one.
-    const updateInfo = getUpdateInfoFromWindow();
-    if (updateInfo) renderUpdateToast(updateInfo, app);
   })();
 }
 

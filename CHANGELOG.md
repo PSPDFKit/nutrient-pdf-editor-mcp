@@ -2,6 +2,15 @@
 
 All notable changes to Nutrient PDF Editor MCP are documented here.
 
+## [Unreleased]
+
+### Removed
+- Runtime update check and the in-viewer "update available" toast. The
+  connector is now distributed through the Claude Connector directory,
+  which keeps installs up to date — the server no longer polls GitHub
+  for newer releases, removing its only runtime call to a non-Nutrient
+  endpoint. New versions are no longer published as GitHub Releases.
+
 ## [1.1.5] — 2026-05-20
 
 ### Changed
