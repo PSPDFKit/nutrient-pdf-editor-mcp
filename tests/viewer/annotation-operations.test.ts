@@ -132,6 +132,83 @@ describe("annotation-operations: pure functions for update and delete", () => {
       expect(updatedAnnotation?.rects?.items?.length).toBe(2);
     });
 
+    it("wraps a plain-string text patch in the SDK { format, value } shape", async () => {
+      // create_annotation takes text as a plain string and the viewer wraps
+      // it (build-annotation.ts); the update patch must accept the same
+      // friendly shape rather than requiring the raw SDK object.
+      const mockSDK = createMockSDK();
+      const ann = createMockAnnotation("note-1", { text: { format: "plain", value: "old" } });
+
+      let updatedAnnotation: any = null;
+
+      const instance = {
+        totalPageCount: 1,
+        async getAnnotations() {
+          return { find: (pred: any) => (pred(ann) ? ann : undefined) };
+        },
+        async update(a: any) {
+          updatedAnnotation = a;
+        },
+        async delete() {}
+      };
+
+      const result = await updateAnnotation(instance, "note-1", { text: "new text" }, mockSDK);
+
+      expect(result.ok).toBe(true);
+      expect(updatedAnnotation?.text).toEqual({ format: "plain", value: "new text" });
+    });
+
+    it("passes an object-shaped text patch through unchanged", async () => {
+      const mockSDK = createMockSDK();
+      const ann = createMockAnnotation("note-1", { text: { format: "plain", value: "old" } });
+
+      let updatedAnnotation: any = null;
+
+      const instance = {
+        totalPageCount: 1,
+        async getAnnotations() {
+          return { find: (pred: any) => (pred(ann) ? ann : undefined) };
+        },
+        async update(a: any) {
+          updatedAnnotation = a;
+        },
+        async delete() {}
+      };
+
+      const patch = { text: { format: "xhtml", value: "<p>new</p>" } };
+      const result = await updateAnnotation(instance, "note-1", patch, mockSDK);
+
+      expect(result.ok).toBe(true);
+      expect(updatedAnnotation?.text).toEqual({ format: "xhtml", value: "<p>new</p>" });
+    });
+
+    it("aliases a contents patch to text", async () => {
+      // read_annotations returns the text under `contents`, so a model doing
+      // read-then-patch plausibly sends { contents: "..." }. The SDK has no
+      // such property; map it onto `text` instead of setting a junk key.
+      const mockSDK = createMockSDK();
+      const ann = createMockAnnotation("note-1", { text: { format: "plain", value: "old" } });
+
+      let updatedAnnotation: any = null;
+
+      const instance = {
+        totalPageCount: 1,
+        async getAnnotations() {
+          return { find: (pred: any) => (pred(ann) ? ann : undefined) };
+        },
+        async update(a: any) {
+          updatedAnnotation = a;
+        },
+        async delete() {}
+      };
+
+      const result = await updateAnnotation(instance, "note-1", { contents: "via alias" }, mockSDK);
+
+      expect(result.ok).toBe(true);
+      expect(updatedAnnotation?.text).toEqual({ format: "plain", value: "via alias" });
+      expect(updatedAnnotation?.contents).toBeUndefined();
+    });
+
     it("returns error if annotation not found", async () => {
       const mockSDK = createMockSDK();
       const instance = {

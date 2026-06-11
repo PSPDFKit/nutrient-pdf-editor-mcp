@@ -66,7 +66,7 @@ idempotent no-op pre-open.
 | `read_text` | Plain text of an open document, with optional 0-based `pageStart`/`pageEnd` range; auto-paginates at a 100K-char cap by trimming back to the last full page that fits. |
 | `create_annotation` | Create one of 10 annotation types (discriminated union). |
 | `read_annotations` | Filter by `pageIndex` and/or `type`. |
-| `update_annotation` | Patch annotation by id. |
+| `update_annotation` | Patch annotation by id. Patch keys mirror `create_annotation` input shapes: `text` accepts a plain string (wrapped to the SDK's `{ format, value }` viewer-side; the raw object is also accepted), `contents` is an alias for `text` matching the `read_annotations` output key, `rect`/`rects` are plain rect objects. |
 | `delete_annotation` | Delete annotation by id. |
 | `apply_annotations` | Apply redactions — dual gate: tool description requires the model to confirm in chat, plus a host-rendered elicitation form when the client advertises `capabilities.elicitation`. |
 | `read_form_fields` | Returns `Serializers.FormFieldJSON` shape (with `pageIndex`/`rect` extensions); optional page scope. |

@@ -32,8 +32,15 @@ function startHarnessServer(): Promise<{ url: string; close: () => Promise<void>
     }
     const server = http.createServer((req, res) => {
       if (req.url === "/mcp-app.html" || req.url === "/") {
+        // Mirror production: src/mcp/app-resource.ts prepends the
+        // version-pinned CDN <script> tag at resource-read time so the SDK
+        // shim's `globalThis.NutrientViewer` exists before the inlined
+        // bundle evaluates. The raw dist file carries no such tag; without
+        // it every document open dies with "Cannot read properties of
+        // undefined (reading 'load')".
+        const injection = `<script src="${VIEWER_CDN_BASE_URL}nutrient-viewer.js"></script>\n`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        res.end(fs.readFileSync(htmlPath));
+        res.end(injection + fs.readFileSync(htmlPath, "utf8"));
         return;
       }
       res.writeHead(404).end();

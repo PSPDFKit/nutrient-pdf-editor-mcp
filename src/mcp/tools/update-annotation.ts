@@ -26,7 +26,9 @@ export function registerUpdateAnnotationTool(
         "Use when refining existing markup — adjusting a highlight's color, moving a redaction rect, editing a note's text, or resizing an ink stroke. Patches the named fields on the annotation; unmentioned fields are left as-is. Returns the id of the updated annotation.",
       inputSchema: {
         id: z.string().min(1).describe("The annotation id to update"),
-        patch: AnnotationPatch.describe("Partial object with fields to update")
+        patch: AnnotationPatch.describe(
+          "Partial object with fields to update. Keys mirror create_annotation input shapes: text is a plain string, rect/rects are plain {left, top, width, height} objects."
+        )
       },
       command: (input, requestId) => ({
         type: "update_annotation",

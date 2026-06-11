@@ -69,7 +69,8 @@ export async function updateAnnotation(
     return { ok: false, error: `Annotation not found: ${id}` };
   }
 
-  // Apply patch via .set() for each entry.
+  // Apply patch via .set() for each entry. Friendly create_annotation-style
+  // shapes are translated to SDK shapes here, mirroring build-annotation.ts.
   let updated = existing;
   for (const [k, v] of Object.entries(patch)) {
     if (k === "rect" || k === "boundingBox") {
@@ -80,6 +81,11 @@ export async function updateAnnotation(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rects = (v as any[]).map((r) => new NutrientSDK.Geometry.Rect(r));
       updated = updated.set("rects", NutrientSDK.Immutable.List(rects));
+    } else if (k === "text" || k === "contents") {
+      // create_annotation takes text as a plain string; the SDK stores
+      // { format, value }. Accept both, plus `contents` — the key
+      // read_annotations returns text under, which the SDK doesn't have.
+      updated = updated.set("text", typeof v === "string" ? { format: "plain", value: v } : v);
     } else {
       updated = updated.set(k, v);
     }
