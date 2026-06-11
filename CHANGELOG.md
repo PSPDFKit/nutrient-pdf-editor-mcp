@@ -2,7 +2,17 @@
 
 All notable changes to Nutrient PDF Editor MCP are documented here.
 
-## [Unreleased]
+## [1.1.6] — 2026-06-11
+
+### Fixed
+- `update_annotation` now accepts a plain string for an annotation's
+  `text` (and the `contents` alias `read_annotations` returns it
+  under), wrapping it into the SDK's `{ format, value }` shape exactly
+  as `create_annotation` does. The two tools previously diverged: a
+  plain-string `text` patch passed validation but corrupted the
+  annotation record instead of updating it. The `text`/`contents`
+  contract is now declared in the tool's JSON schema so malformed
+  shapes fail validation up front.
 
 ### Removed
 - Runtime update check and the in-viewer "update available" toast. The
