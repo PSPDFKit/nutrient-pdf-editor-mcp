@@ -72,39 +72,3 @@ export function getRenewalUrlFromWindow(): string {
   }
   return DEFAULT_RENEWAL_URL_FALLBACK;
 }
-
-/**
- * Update notice injected by the server when a newer release exists (see
- * src/mcp/update-check.ts → src/mcp/app-resource.ts). Mirrors the server's
- * `UpdateInfo` shape; kept as a local type so the browser bundle does not
- * import from src/mcp/ (enforced by the no-restricted-imports rule).
- */
-export interface ViewerUpdateInfo {
-  currentVersion: string;
-  latestVersion: string;
-  downloadUrl: string;
-}
-
-/**
- * Reads window.__NUTRIENT_UPDATE__ — present only when the server's runtime
- * update check found a newer release. Returns `undefined` when this bundle is
- * current or the check did not run / failed. Validates the shape defensively
- * so a malformed injection can never crash the toast renderer.
- */
-export function getUpdateInfoFromWindow(): ViewerUpdateInfo | undefined {
-  const value = readWindowGlobal<unknown>("__NUTRIENT_UPDATE__");
-  if (!value || typeof value !== "object") return undefined;
-  const v = value as Record<string, unknown>;
-  if (
-    typeof v.currentVersion === "string" &&
-    typeof v.latestVersion === "string" &&
-    typeof v.downloadUrl === "string"
-  ) {
-    return {
-      currentVersion: v.currentVersion,
-      latestVersion: v.latestVersion,
-      downloadUrl: v.downloadUrl
-    };
-  }
-  return undefined;
-}

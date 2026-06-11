@@ -17,9 +17,7 @@ Powered by the Nutrient Web Viewer, packaged as a Claude Connector for Claude Co
 
 ## Install
 
-Search for Nutrient directly in the Claude Connector directory.
-
-Or download the latest release — [`nutrient-pdf-editor-mcp.mcpb`](https://github.com/PSPDFKit/nutrient-pdf-editor-mcp/releases/latest/download/nutrient-pdf-editor-mcp.mcpb) — and double-click the downloaded file to install it in Claude Desktop.
+In Claude Desktop, open **Settings → Extensions → Browse extensions** and search for **Nutrient PDF Editor**. Extensions installed from the directory are kept up to date by Claude Desktop automatically.
 
 ## Usage
 

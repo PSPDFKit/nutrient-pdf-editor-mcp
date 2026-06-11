@@ -1,7 +1,6 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.js";
 import { startStaleViewSweep } from "./session.js";
-import { startUpdateCheck } from "./update-check.js";
 
 const KNOWN_FLAGS = new Set(["--stdio", "--ping"]);
 
@@ -35,8 +34,6 @@ async function main() {
   const server = createServer();
   await server.connect(new StdioServerTransport());
   startStaleViewSweep();
-  // Fire-and-forget: result is consumed when the viewer resource is read.
-  startUpdateCheck();
 }
 
 main().catch((err) => {

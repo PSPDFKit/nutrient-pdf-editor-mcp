@@ -4,7 +4,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { log } from "./logger.js";
 import { resolveHostAppName } from "./host-mapping.js";
-import { getUpdateInfo } from "./update-check.js";
 
 // Stable URI so every tool that renders the viewer can reference the same resource.
 export const VIEWER_RESOURCE_URI = "ui://nutrient-viewer/mcp-app.html";
@@ -139,20 +138,12 @@ export function registerViewerAppResource(server: McpServer): void {
       // HTML, so the inline globals must be prepended at serve time.
       const sdkUrl = `${assetBaseUrl}nutrient-viewer.js`;
       log("info", "viewer.resource.cdnSdk", { sdkUrl });
-      // Runtime update check (see src/mcp/update-check.ts). `null` when this
-      // bundle is current, the check is still in flight, or it failed — in all
-      // those cases the global is simply omitted and no toast renders.
-      const updateInfo = await getUpdateInfo();
-      const updateGlobal = updateInfo
-        ? `window.__NUTRIENT_UPDATE__ = ${JSON.stringify(updateInfo)};`
-        : "";
       const injection =
         `<script src="${sdkUrl}"></script>\n` +
         `<script>` +
         `window.__NUTRIENT_ASSET_BASE__ = ${JSON.stringify(assetBaseUrl)};` +
         `window.__NUTRIENT_APP_NAME__ = ${JSON.stringify(appName)};` +
         `window.__NUTRIENT_RENEWAL_URL__ = ${JSON.stringify(getRenewalUrl())};` +
-        updateGlobal +
         `</script>\n`;
       const html = injection + rawHtml;
       return {

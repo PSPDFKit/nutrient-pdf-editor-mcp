@@ -24,9 +24,15 @@ The viewer iframe is the entire point of the server. Cowork inside Claude Deskto
 
 ## End-user install
 
-1. Download the `.mcpb` from the project's [GitHub Releases](https://github.com/PSPDFKit/nutrient-pdf-editor-mcp/releases) (or build it locally via `npm run build`; output lands in `build/nutrient-pdf-editor-mcp-<version>.mcpb`).
-2. Open Claude Desktop → Settings → Connectors → install the `.mcpb`.
+1. In Claude Desktop, open Settings → Extensions → Browse extensions and search for **Nutrient PDF Editor**.
+2. Install it from the directory. Claude Desktop runs the bundled server locally over stdio and keeps directory installs up to date as new versions are published.
 3. Use the editor inside a Cowork chat in Claude Desktop. Tools register with the bare names defined in [`tool-surface.md`](../tool-surface.md).
+
+Developers can build the bundle locally via `npm run build` (output lands in `build/nutrient-pdf-editor-mcp-<version>.mcpb`) and install it by double-clicking the file. Local builds without a license key run the viewer in watermarked trial mode.
+
+## How releases ship
+
+New versions are submitted to Anthropic for review and published through the Claude Connector directory; the [Build release bundle workflow](../../.github/workflows/release.yml) produces the submission `.mcpb` on tag push. GitHub Releases are no longer published — the historical releases remain available for reference only.
 
 ## See also
 
