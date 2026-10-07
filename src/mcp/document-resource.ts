@@ -3,6 +3,7 @@ import { ResourceTemplate, type McpServer } from "@modelcontextprotocol/sdk/serv
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { getSession } from "./session.js";
 import { log } from "./logger.js";
+import { getRemoteDocument, isRemoteDocumentPath } from "./remote-documents.js";
 
 /**
  * URI template for the open-document bytes resource. The iframe MUST
@@ -83,6 +84,28 @@ export function registerCurrentDocumentResource(server: McpServer): void {
         requestedPath = decodeURIComponent(encoded);
       } catch {
         throw new McpError(ErrorCode.InvalidParams, `Malformed percent-encoded path: ${encoded}`);
+      }
+
+      // Remote documents (open_document_url) are served from the in-memory
+      // cache by their unguessable id. No session lookup: the host may route
+      // the iframe's reads through a different MCP session than the agent's.
+      if (isRemoteDocumentPath(requestedPath)) {
+        const remote = getRemoteDocument(requestedPath);
+        if (!remote) {
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            `${STALE_PATH_ERROR_PREFIX} remote document expired or unknown`
+          );
+        }
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: "application/octet-stream",
+              blob: remote.bytes.toString("base64")
+            }
+          ]
+        };
       }
 
       const { documentPath, viewUUID } = getSession();

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { LicenseErrorPayload } from "../contract/viewer-errors.js";
 // ViewerCommand is the single source of truth in src/contract/ — no longer
 // duplicated here. Imported for local use and re-exported so existing
@@ -100,12 +101,6 @@ export interface LicenseStateBackend {
  */
 export type SessionBackend = BridgeBackend & DocumentStateBackend & LicenseStateBackend;
 
-const STATE: SessionState = {
-  viewUUID: randomUUID(),
-  pending: new Map(),
-  documentPath: null
-};
-
 const queues: Map<string, ViewerCommand[]> = new Map();
 const liveViews: Map<string, number> = new Map();
 
@@ -128,12 +123,90 @@ interface FsSyncState {
   licenseError: LicenseErrorPayload | null;
 }
 
-const FS_SYNC: FsSyncState = {
-  documentDirty: false,
-  documentCheckpoint: null,
-  isPendingSave: false,
-  licenseError: null
-};
+// ---------------------------------------------------------------------------
+// Per-session context (hosted / remote mode).
+//
+// The original stdio server owns exactly one user, so "the active view" and
+// "the open document" were module globals. The hosted HTTP server serves many
+// MCP sessions from one process, so those two pieces of state (STATE minus the
+// pending map, and FS_SYNC) live in a per-session context selected through
+// AsyncLocalStorage. Each HTTP request is handled inside
+// `runInSessionContext(ctx, …)` (see src/mcp/http-server.ts). Outside any
+// context (stdio, tests) the process-wide default context is used, so stdio
+// behavior is unchanged.
+//
+// Everything keyed by an unguessable id stays global: pending responses
+// (requestId), command queues / live views / poll waiters (viewUUID). That is
+// what lets the viewer iframe reach its queue even if the host routes the
+// iframe's calls through a different MCP session than the agent's.
+// ---------------------------------------------------------------------------
+export interface SessionContext {
+  state: SessionState;
+  fs: FsSyncState;
+  /** viewUUIDs created by open calls in this session (scoped contexts only). */
+  ownedViews: Set<string>;
+  scoped: boolean;
+}
+
+// One pending-response map for the whole process. Every context's
+// `state.pending` reads and writes this same slot (tests reassign it).
+const SHARED: { pending: SessionState["pending"] } = { pending: new Map() };
+
+function newState(): SessionState {
+  const state = { viewUUID: randomUUID(), documentPath: null } as unknown as SessionState;
+  Object.defineProperty(state, "pending", {
+    enumerable: true,
+    get: () => SHARED.pending,
+    set: (value: SessionState["pending"]) => {
+      SHARED.pending = value;
+    }
+  });
+  return state;
+}
+
+function newContext(scoped: boolean): SessionContext {
+  return {
+    state: newState(),
+    fs: {
+      documentDirty: false,
+      documentCheckpoint: null,
+      isPendingSave: false,
+      licenseError: null
+    },
+    ownedViews: new Set(),
+    scoped
+  };
+}
+
+const DEFAULT_CONTEXT: SessionContext = newContext(false);
+const contextStorage = new AsyncLocalStorage<SessionContext>();
+
+function ctx(): SessionContext {
+  return contextStorage.getStore() ?? DEFAULT_CONTEXT;
+}
+
+/** Create an isolated context for one hosted MCP session. */
+export function createSessionContext(): SessionContext {
+  return newContext(true);
+}
+
+/** Run `fn` (and everything it awaits) against `context`. */
+export function runInSessionContext<T>(context: SessionContext, fn: () => T): T {
+  return contextStorage.run(context, fn);
+}
+
+/** True when running inside a hosted (per-session) context. */
+export function isScopedSession(): boolean {
+  return ctx().scoped;
+}
+
+export function addOwnedView(viewUUID: string): void {
+  ctx().ownedViews.add(viewUUID);
+}
+
+export function isOwnedView(viewUUID: string): boolean {
+  return ctx().ownedViews.has(viewUUID);
+}
 
 // ---------------------------------------------------------------------------
 // Internal sub-objects — grouped for navigability.
@@ -148,16 +221,16 @@ const FS_SYNC: FsSyncState = {
 /** Bridge: viewUUID routing, per-view queues, pending-response registry. */
 const _bridge: BridgeBackend = {
   getViewUUID(): string {
-    return STATE.viewUUID;
+    return ctx().state.viewUUID;
   },
   setActiveViewUUID(viewUUID: string): void {
-    STATE.viewUUID = viewUUID;
+    ctx().state.viewUUID = viewUUID;
   },
   enqueue(cmd: ViewerCommand): void {
-    _bridge.enqueueToView(STATE.viewUUID, cmd);
+    _bridge.enqueueToView(ctx().state.viewUUID, cmd);
   },
   drain(): ViewerCommand[] {
-    return _bridge.drainView(STATE.viewUUID);
+    return _bridge.drainView(ctx().state.viewUUID);
   },
   enqueueToView(viewUUID: string, cmd: ViewerCommand): void {
     const q = queues.get(viewUUID);
@@ -189,23 +262,23 @@ const _bridge: BridgeBackend = {
   },
   registerPending(requestId: string): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      STATE.pending.set(requestId, { resolve, reject });
+      SHARED.pending.set(requestId, { resolve, reject });
     });
   },
   resolvePending(requestId: string, payload: unknown): void {
-    const entry = STATE.pending.get(requestId);
+    const entry = SHARED.pending.get(requestId);
     if (!entry) return;
-    STATE.pending.delete(requestId);
+    SHARED.pending.delete(requestId);
     entry.resolve(payload);
   },
   rejectPending(requestId: string, err: Error): void {
-    const entry = STATE.pending.get(requestId);
+    const entry = SHARED.pending.get(requestId);
     if (!entry) return;
-    STATE.pending.delete(requestId);
+    SHARED.pending.delete(requestId);
     entry.reject(err);
   },
   deletePending(requestId: string): void {
-    STATE.pending.delete(requestId);
+    SHARED.pending.delete(requestId);
   }
 };
 
@@ -219,58 +292,58 @@ const _doc: DocumentStateBackend = {
     // mid-bracket `isPendingSave=true` would briefly suppress the new
     // watcher's first event. The checkpoint is re-set by `startWatching()`
     // immediately after, so dropping it here is safe.
-    STATE.documentPath = documentPath;
-    FS_SYNC.documentDirty = false;
-    FS_SYNC.documentCheckpoint = null;
-    FS_SYNC.isPendingSave = false;
+    ctx().state.documentPath = documentPath;
+    ctx().fs.documentDirty = false;
+    ctx().fs.documentCheckpoint = null;
+    ctx().fs.isPendingSave = false;
     // Clear any prior license error — a new open_document attempt means the
     // operator may have fixed the license key; let the viewer re-evaluate.
-    FS_SYNC.licenseError = null;
+    ctx().fs.licenseError = null;
   },
   clearOpenDocument(): void {
-    STATE.documentPath = null;
-    FS_SYNC.documentDirty = false;
-    FS_SYNC.documentCheckpoint = null;
-    FS_SYNC.isPendingSave = false;
+    ctx().state.documentPath = null;
+    ctx().fs.documentDirty = false;
+    ctx().fs.documentCheckpoint = null;
+    ctx().fs.isPendingSave = false;
     // Clear license error on close too: session is being torn down.
-    FS_SYNC.licenseError = null;
+    ctx().fs.licenseError = null;
   },
   hasOpenDocument(): boolean {
-    return STATE.documentPath !== null;
+    return ctx().state.documentPath !== null;
   },
   getDocumentPath(): string | null {
-    return STATE.documentPath;
+    return ctx().state.documentPath;
   },
   setDocumentDirty(dirty: boolean): void {
-    FS_SYNC.documentDirty = dirty;
+    ctx().fs.documentDirty = dirty;
   },
   isDocumentDirty(): boolean {
-    return FS_SYNC.documentDirty;
+    return ctx().fs.documentDirty;
   },
   setDocumentCheckpoint(cp: DocumentCheckpoint | null): void {
-    FS_SYNC.documentCheckpoint = cp;
+    ctx().fs.documentCheckpoint = cp;
   },
   getDocumentCheckpoint(): DocumentCheckpoint | null {
-    return FS_SYNC.documentCheckpoint;
+    return ctx().fs.documentCheckpoint;
   },
   setIsPendingSave(pending: boolean): void {
-    FS_SYNC.isPendingSave = pending;
+    ctx().fs.isPendingSave = pending;
   },
   isPendingSave(): boolean {
-    return FS_SYNC.isPendingSave;
+    return ctx().fs.isPendingSave;
   }
 };
 
 /** License state: persisted at load time, cleared on each new open_document. */
 const _license: LicenseStateBackend = {
   setLicenseError(payload: LicenseErrorPayload): void {
-    FS_SYNC.licenseError = payload;
+    ctx().fs.licenseError = payload;
   },
   clearLicenseError(): void {
-    FS_SYNC.licenseError = null;
+    ctx().fs.licenseError = null;
   },
   getLicenseError(): LicenseErrorPayload | null {
-    return FS_SYNC.licenseError;
+    return ctx().fs.licenseError;
   }
 };
 
@@ -283,10 +356,10 @@ function selectBackend(): SessionBackend {
     // and so removing src/mcp/shared-state/ leaves session.ts compilable.
     const { createSharedFileBackend } = require("./shared-state/file-backend.js");
     const backend = createSharedFileBackend() as SessionBackend;
-    // Keep STATE.viewUUID in sync so getSession() readers (legacy) see the
+    // Keep ctx().state.viewUUID in sync so getSession() readers (legacy) see the
     // shared UUID. The singleProcessBackend queue/pending become inert; no
     // production call site reads them directly when this backend is active.
-    STATE.viewUUID = backend.getViewUUID();
+    ctx().state.viewUUID = backend.getViewUUID();
     return backend;
   }
   // END cross-process workaround
@@ -296,10 +369,10 @@ function selectBackend(): SessionBackend {
 const backend: SessionBackend = selectBackend();
 
 export function getSession(): SessionState {
-  if (backend === singleProcessBackend) return STATE;
+  if (backend === singleProcessBackend) return ctx().state;
   return {
     viewUUID: backend.getViewUUID(),
-    pending: STATE.pending,
+    pending: SHARED.pending,
     documentPath: backend.getDocumentPath()
   };
 }
@@ -307,10 +380,10 @@ export function getSession(): SessionState {
 export function setActiveViewUUID(viewUUID: string): void {
   backend.setActiveViewUUID(viewUUID);
   // Keep STATE in sync for in-memory callers reading STATE directly. (The
-  // shared-state backend bypasses STATE.viewUUID; the singleProcessBackend
-  // version writes STATE.viewUUID itself, so this is a no-op there. The
+  // shared-state backend bypasses ctx().state.viewUUID; the singleProcessBackend
+  // version writes ctx().state.viewUUID itself, so this is a no-op there. The
   // explicit write here makes intent clear and survives backend swaps.)
-  STATE.viewUUID = viewUUID;
+  ctx().state.viewUUID = viewUUID;
 }
 
 export function enqueue(cmd: ViewerCommand): void {
@@ -477,10 +550,10 @@ export function __resetForTesting(): void {
   // hang forever in tests that swap fixtures mid-flight.
   for (const [, waiter] of pollWaiters) waiter();
   pollWaiters.clear();
-  STATE.pending.clear();
-  STATE.documentPath = null;
-  FS_SYNC.documentDirty = false;
-  FS_SYNC.documentCheckpoint = null;
-  FS_SYNC.isPendingSave = false;
-  FS_SYNC.licenseError = null;
+  SHARED.pending.clear();
+  ctx().state.documentPath = null;
+  ctx().fs.documentDirty = false;
+  ctx().fs.documentCheckpoint = null;
+  ctx().fs.isPendingSave = false;
+  ctx().fs.licenseError = null;
 }
