@@ -66,6 +66,7 @@ describe("tool surface (AC9.5)", () => {
     // prefixed name or invents a new shape).
     const ALLOWED_PUBLIC_NAMES = new Set([
       "open_document",
+      "open_document_url",
       "close_document",
       "get_view_state",
       "set_view_state",

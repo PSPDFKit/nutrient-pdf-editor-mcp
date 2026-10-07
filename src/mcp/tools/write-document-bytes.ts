@@ -13,6 +13,7 @@ import {
 } from "../session.js";
 import { requireValidLicense, requireFreshDocument } from "../document-guard.js";
 import { log } from "../logger.js";
+import { finalizeRemoteSave, isRemoteDocumentPath, writeRemoteChunk } from "../remote-documents.js";
 
 const MAX_CHUNK_BYTES = 2 * 1024 * 1024;
 const PENDING_SAVE_CLEAR_DELAY_MS = 500;
@@ -295,6 +296,9 @@ export function registerWriteDocumentBytes(server: McpServer): RegisteredTool {
       }
     },
     async ({ offset, byteCount, dataBase64, isFinal, documentPath: callerDocumentPath }) => {
+      if (isRemoteDocumentPath(callerDocumentPath)) {
+        return writeRemote(offset, byteCount, dataBase64, isFinal, callerDocumentPath);
+      }
       const { viewUUID } = getSession();
       log("info", "write_document_bytes.called", {
         offset,
@@ -354,4 +358,47 @@ export function registerWriteDocumentBytes(server: McpServer): RegisteredTool {
       };
     }
   );
+}
+
+/**
+ * Remote documents (open_document_url) have no file on disk. Saves replace the
+ * cached bytes so the edited version is what the viewer reloads and what a
+ * later write-back step would upload. Keyed by the iframe's own document path,
+ * not by session state, because the host may route iframe calls through a
+ * different MCP session than the agent's.
+ */
+function writeRemote(
+  offset: number,
+  byteCount: number,
+  dataBase64: string,
+  isFinal: boolean,
+  documentPath: string
+) {
+  if (byteCount === 0 && !isFinal) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      "Empty non-final chunk is not allowed. Send at least one non-empty chunk, or finalize with byteCount=0 and isFinal=true."
+    );
+  }
+  const chunk = Buffer.from(dataBase64, "base64");
+  if (chunk.length !== byteCount) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      `Decoded byte count (${chunk.length}) does not match declared byteCount (${byteCount}).`
+    );
+  }
+  const streamKey = "viewer";
+  const totalBytes = writeRemoteChunk(documentPath, streamKey, offset, chunk);
+  if (isFinal) {
+    const entry = finalizeRemoteSave(documentPath, streamKey);
+    log("info", "write_document_bytes.remote_finalized", {
+      totalBytes,
+      saveCount: entry.saveCount
+    });
+  }
+  const result = { bytesWritten: byteCount, finalized: isFinal, totalBytes };
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(result) }],
+    structuredContent: result
+  };
 }

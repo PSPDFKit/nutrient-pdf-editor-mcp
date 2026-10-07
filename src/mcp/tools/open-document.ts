@@ -7,8 +7,11 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import {
   clearOpenDocument,
+  addOwnedView,
   getLiveViewUUIDs,
   getSession,
+  isOwnedView,
+  isScopedSession,
   setActiveViewUUID,
   setOpenDocument
 } from "../session.js";
@@ -92,8 +95,9 @@ export function registerOpenDocument(server: McpServer): RegisteredTool {
       // an iframe that polled with this UUID for any reason wouldn't get
       // closed by its own open).
       const newViewUUID = randomUUID();
+      // Hosted mode: only close this session's own viewers, never another user's.
       const targets = getLiveViewUUIDs(LIVE_VIEW_STALE_AFTER_MS).filter(
-        (uuid) => uuid !== newViewUUID
+        (uuid) => uuid !== newViewUUID && (!isScopedSession() || isOwnedView(uuid))
       );
       if (targets.length > 0) {
         log("info", "open_document.broadcast_close.start", {
@@ -137,6 +141,7 @@ export function registerOpenDocument(server: McpServer): RegisteredTool {
       clearOpenDocument();
 
       setActiveViewUUID(newViewUUID);
+      addOwnedView(newViewUUID);
       setOpenDocument(abs);
       // Start watching the document for external edits. The watcher snapshots
       // size+mtime into the session checkpoint and flips documentDirty=true
