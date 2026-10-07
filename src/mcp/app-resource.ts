@@ -96,7 +96,16 @@ export function getRenewalUrl(): string {
   return trimmed.length > 0 ? trimmed : DEFAULT_RENEWAL_URL;
 }
 
-export function registerViewerAppResource(server: McpServer): void {
+export interface ViewerAppResourceOptions {
+  /** Hosted connector: no host appName, always trial mode, keep download/print. */
+  remote?: boolean;
+}
+
+export function registerViewerAppResource(
+  server: McpServer,
+  options: ViewerAppResourceOptions = {}
+): void {
+  const remote = options.remote === true;
   registerAppResource(
     server,
     "Nutrient PDF Editor",
@@ -110,7 +119,9 @@ export function registerViewerAppResource(server: McpServer): void {
       // this becomes the SDK's `appName`; null when the host is unknown
       // (the viewer then omits `appName`).
       const clientInfo = server.server.getClientVersion();
-      const appName = resolveHostAppName(clientInfo);
+      // appName is a desktop (Electron) licensing concept; the hosted viewer
+      // runs on the host's sandbox origin, so it is omitted there.
+      const appName = remote ? null : resolveHostAppName(clientInfo);
       log("info", "viewer.resource.read", {
         uri: VIEWER_RESOURCE_URI,
         assetBaseUrl,
@@ -144,6 +155,12 @@ export function registerViewerAppResource(server: McpServer): void {
         `window.__NUTRIENT_ASSET_BASE__ = ${JSON.stringify(assetBaseUrl)};` +
         `window.__NUTRIENT_APP_NAME__ = ${JSON.stringify(appName)};` +
         `window.__NUTRIENT_RENEWAL_URL__ = ${JSON.stringify(getRenewalUrl())};` +
+        // Hosted mode: force trial mode (no license key) and tell the viewer
+        // it is remote so it keeps the download and print buttons, since edits
+        // are not written back anywhere the user can reach.
+        (remote
+          ? `window.__NUTRIENT_LICENSE_KEY__ = "";window.__NUTRIENT_REMOTE_MODE__ = true;`
+          : "") +
         `</script>\n`;
       const html = injection + rawHtml;
       return {

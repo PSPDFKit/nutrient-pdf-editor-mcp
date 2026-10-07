@@ -25,6 +25,8 @@
     "build:mcpb": "node scripts/build-mcpb.mjs",
     "prebuild": "npm run clean",
     "build": "tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.viewer.json && npm run build:viewer && npm run build:server && node scripts/verify-dist.mjs && node scripts/verify-versions.mjs && node scripts/verify-server-name.mjs && node scripts/verify-registry-sync.mjs && node scripts/verify-manifest-tools.mjs && npm run build:mcpb",
+    "build:remote": "tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.viewer.json && npm run build:viewer && npm run build:server",
+    "start:http": "node dist/index.js --http",
     "verify:license-env": "node scripts/verify-license-env.mjs",
     "test": "vitest run",
     "test:e2e": "vitest run -c vitest.e2e.config.ts",

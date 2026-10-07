@@ -15,6 +15,7 @@ import { registerViewerAppResource } from "./app-resource.js";
 import { registerCurrentDocumentResource } from "./document-resource.js";
 import { registerInternalTools } from "./internal-tools.js";
 import { registerOpenDocument } from "./tools/open-document.js";
+import { registerOpenDocumentUrl } from "./tools/open-document-url.js";
 import { registerWriteDocumentBytes } from "./tools/write-document-bytes.js";
 import { registerViewStateTools } from "./tools/view-state.js";
 import { registerSearchExactTextTool } from "./tools/search-exact-text.js";
@@ -32,7 +33,34 @@ import { registerReadTextTool } from "./tools/read-text.js";
 import { registerCloseDocumentTool } from "./tools/close-document.js";
 import { installInternalToolsFilter } from "./tool-registry.js";
 
-export function createServer(): McpServer {
+/**
+ * `local` (default): the original stdio Claude Desktop extension. Opens files
+ * from client roots on disk.
+ *
+ * `remote`: the hosted connector (Streamable HTTP, see http-server.ts). No
+ * filesystem: documents are opened from HTTPS links with `open_document_url`
+ * (for example the link returned by the Salesforce "Nutrient: Generate
+ * Document" action) and kept in memory. Runs the Web SDK in trial mode.
+ */
+export type ServerMode = "local" | "remote";
+
+export interface CreateServerOptions {
+  mode?: ServerMode;
+}
+
+export const REMOTE_SERVER_NAME = "Nutrient Document Viewer";
+
+const REMOTE_INSTRUCTIONS = [
+  "Use this server to show a document to the user inside the chat in the Nutrient viewer, where they can read, annotate, fill and redact it.",
+  "Salesforce workflow: after a Salesforce Nutrient action such as 'Nutrient: Generate Document' returns a viewerUrl, call open_document_url with that URL (and its fileName) to display the generated document. Do not download the file yourself or paste its contents.",
+  "After open_document_url returns, use the operating tools: read_text, search_exact_text, read/create/update/delete_annotation, read_form_fields, update_form_field_values, get_page_image, get_view_state, set_view_state, apply_annotations. Only one document is open at a time; opening another replaces it.",
+  "Edits are kept in the viewer for this conversation only. They are not saved back to Salesforce.",
+  'LICENSE_ERROR: If any tool returns an McpError whose data.code is "LICENSE_ERROR", tell the user the viewer license is not valid and share the guidance text.'
+].join("\n\n");
+
+export function createServer(options: CreateServerOptions = {}): McpServer {
+  const mode: ServerMode = options.mode ?? "local";
+  const remote = mode === "remote";
   // Elicitation is consumed by `apply_annotations` to confirm permanent
   // redactions; the call site is gated on the client's
   // `capabilities.elicitation` advertisement (read fresh per invocation).
@@ -45,18 +73,22 @@ export function createServer(): McpServer {
   // resource lookups by display name; a mismatch makes the host silently skip
   // resources/read so the iframe never renders. Enforced by verify-server-name.mjs.
   const server = new McpServer(
-    { name: "Nutrient PDF Editor", version: "0.1.0" },
+    { name: remote ? REMOTE_SERVER_NAME : "Nutrient PDF Editor", version: "0.1.0" },
     {
       capabilities,
-      instructions: [
-        'Use this server whenever the user works with a document file — PDF, Word/Excel/PowerPoint, or scanned images (.pdf, .docx, .xlsx, .pptx, .png, .jpg, .tiff). Triggers include: "review this contract", "redact PII", "fill out this form", "extract X from this report", "show me page N", "find every signature", "highlight clauses about Y", or any prompt that names a document path with one of these extensions.',
-        "Workflow: call open_document first with the file path. The viewer iframe mounts so the user can see and verify the work. After it returns, use the operating tools — read_text, search_exact_text, read/create/update/delete_annotation, read/update_form_field_values, get_page_image, apply_annotations. Only one document is open at a time; opening another replaces it.",
-        "This server treats these documents as documents — extracting text with page boundaries, rendering pages as images, finding form fields, applying redactions — and surfaces a viewer the user can watch. Reach for it whenever a task involves the contents of one of the supported document file types.",
-        'LICENSE_ERROR: If any tool returns an McpError whose data.code is "LICENSE_ERROR", the Nutrient Web SDK rejected the license configuration. The error data also contains a subKind ("invalid", "expired", or "host-mismatch") and a guidance string with a support-contact URL. All subsequent tool calls on the same session will return the same error until a new open_document succeeds with a valid license. Inform the user of the license issue and provide the guidance text.'
-      ].join("\n\n")
+      instructions: remote
+        ? REMOTE_INSTRUCTIONS
+        : [
+            'Use this server whenever the user works with a document file — PDF, Word/Excel/PowerPoint, or scanned images (.pdf, .docx, .xlsx, .pptx, .png, .jpg, .tiff). Triggers include: "review this contract", "redact PII", "fill out this form", "extract X from this report", "show me page N", "find every signature", "highlight clauses about Y", or any prompt that names a document path with one of these extensions.',
+            "Workflow: call open_document first with the file path. The viewer iframe mounts so the user can see and verify the work. After it returns, use the operating tools — read_text, search_exact_text, read/create/update/delete_annotation, read/update_form_field_values, get_page_image, apply_annotations. Only one document is open at a time; opening another replaces it.",
+            "This server treats these documents as documents — extracting text with page boundaries, rendering pages as images, finding form fields, applying redactions — and surfaces a viewer the user can watch. Reach for it whenever a task involves the contents of one of the supported document file types.",
+            'LICENSE_ERROR: If any tool returns an McpError whose data.code is "LICENSE_ERROR", the Nutrient Web SDK rejected the license configuration. The error data also contains a subKind ("invalid", "expired", or "host-mismatch") and a guidance string with a support-contact URL. All subsequent tool calls on the same session will return the same error until a new open_document succeeds with a valid license. Inform the user of the license issue and provide the guidance text.'
+          ].join("\n\n")
     }
   );
-  initLogger(server);
+  // Hosted mode serves many sessions from one process; forwarding logs over
+  // MCP would leak one user's log lines to whichever session registered last.
+  if (!remote) initLogger(server);
 
   // Replace the SDK's default `initialize` handler with one that gates on the
   // MCP Apps UI capability. The default handler is registered by the SDK
@@ -85,7 +117,11 @@ export function createServer(): McpServer {
   server.server.setRequestHandler(
     InitializeRequestSchema,
     async (request): Promise<InitializeResult> => {
-      requireUiCapability(request.params.capabilities as Parameters<typeof requireUiCapability>[0]);
+      if (process.env.NUTRIENT_SKIP_UI_CAPABILITY_CHECK !== "1") {
+        requireUiCapability(
+          request.params.capabilities as Parameters<typeof requireUiCapability>[0]
+        );
+      }
       // SDK-default initialize body (see
       // node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js).
       // Duplicated here so the gate runs before the side effects;
@@ -110,7 +146,7 @@ export function createServer(): McpServer {
   );
 
   async function refreshClientRoots(): Promise<void> {
-    if (!server.server.getClientCapabilities()?.roots) return;
+    if (remote || !server.server.getClientCapabilities()?.roots) return;
     try {
       const { roots } = await server.server.listRoots();
       setClientRoots(
@@ -140,7 +176,7 @@ export function createServer(): McpServer {
   // Build the explicit tool registry as we register tools. Maps tool name to RegisteredTool.
   const allToolsRegistry = new Map<string, RegisteredTool>();
 
-  registerViewerAppResource(server);
+  registerViewerAppResource(server, { remote });
   // Document bytes flow: viewer reads `nutrient-doc:///current` via
   // `app.readServerResource`; one round-trip, no chunked tool calls.
   registerCurrentDocumentResource(server);
@@ -161,8 +197,12 @@ export function createServer(): McpServer {
 
   // open_document is the entry point. All operating tools are statically advertised;
   // each enforces "document is open" via requireOpenDocument() at handler entry.
-  const openDocumentTool = registerOpenDocument(server);
-  allToolsRegistry.set("open_document", openDocumentTool);
+  if (remote) {
+    allToolsRegistry.set("open_document_url", registerOpenDocumentUrl(server));
+  } else {
+    const openDocumentTool = registerOpenDocument(server);
+    allToolsRegistry.set("open_document", openDocumentTool);
+  }
 
   // View state returns 2 RegisteredTools
   const viewStateTools = registerViewStateTools(server);
