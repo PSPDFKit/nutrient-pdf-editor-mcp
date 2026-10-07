@@ -45,7 +45,8 @@ import {
   ASSET_BASE_URL,
   getAppName,
   NUTRIENT_LICENSE_KEY,
-  getRenewalUrlFromWindow
+  getRenewalUrlFromWindow,
+  isRemoteMode
 } from "./window-globals.js";
 // Re-export for tests that import getRenewalUrlFromWindow from main.ts.
 export { getRenewalUrlFromWindow } from "./window-globals.js";
@@ -457,9 +458,13 @@ export async function openDocumentFromPath(documentPath: string): Promise<void> 
         // download/print would bypass the auto-save / write_document_bytes path
         // and let the user walk away with a snapshot the host doesn't know
         // about.
-        toolbarItems: NutrientSDK.defaultToolbarItems.filter(
-          (item) => item.type !== "export-pdf" && item.type !== "print"
-        ),
+        // Hosted (remote) mode keeps them: edits are not written back to
+        // the source system, so download is how the user keeps their work.
+        toolbarItems: isRemoteMode()
+          ? [...NutrientSDK.defaultToolbarItems]
+          : NutrientSDK.defaultToolbarItems.filter(
+              (item) => item.type !== "export-pdf" && item.type !== "print"
+            ),
         // Both keys: omit when undefined to satisfy `exactOptionalPropertyTypes`
         // and to avoid the SDK's runtime "must be string when present" check.
         ...(NUTRIENT_LICENSE_KEY ? { licenseKey: NUTRIENT_LICENSE_KEY } : {}),

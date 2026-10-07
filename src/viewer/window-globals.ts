@@ -72,3 +72,12 @@ export function getRenewalUrlFromWindow(): string {
   }
   return DEFAULT_RENEWAL_URL_FALLBACK;
 }
+
+/**
+ * Set to `true` by the hosted (remote) server at resource-read time. In that
+ * mode documents come from a download link and edits are not written back to
+ * the source system, so the viewer keeps its download and print buttons.
+ */
+export function isRemoteMode(): boolean {
+  return readWindowGlobal<boolean>("__NUTRIENT_REMOTE_MODE__") === true;
+}
