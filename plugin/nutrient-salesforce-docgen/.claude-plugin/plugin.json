@@ -1,0 +1,10 @@
+{
+  "name": "nutrient-salesforce-docgen",
+  "version": "0.1.0",
+  "description": "Generate documents from Nutrient templates in Salesforce and open the result in the Nutrient viewer inside Claude.",
+  "author": {
+    "name": "Nutrient",
+    "url": "https://www.nutrient.io"
+  },
+  "keywords": ["nutrient", "salesforce", "document generation", "pdf", "viewer"]
+}

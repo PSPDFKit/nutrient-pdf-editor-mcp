@@ -1,0 +1,26 @@
+# Hosted Nutrient Document Viewer connector (remote MCP, Streamable HTTP).
+# Runs as ONE long-lived instance: viewer bridge state and opened documents
+# live in memory. Do not scale horizontally or run on serverless functions.
+#
+#   docker build -f Dockerfile.remote -t nutrient-viewer-remote .
+#   docker run -p 8787:8787 nutrient-viewer-remote
+#   -> MCP endpoint: http://localhost:8787/mcp, health: /healthz
+FROM node:24-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+# No license key on purpose: the hosted viewer runs the Web SDK in trial mode.
+RUN npm run build:remote
+
+FROM node:24-slim
+WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=8787 \
+    NUTRIENT_VIEWER_LOG_FILE=/tmp/nutrient-viewer.log
+COPY --from=build /app/package.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+EXPOSE 8787
+USER node
+CMD ["node", "dist/index.js", "--http"]
