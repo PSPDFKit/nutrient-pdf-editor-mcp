@@ -1,5 +1,10 @@
 # Nutrient PDF Editor
 
+> [!IMPORTANT]
+> **Nutrient PDF Editor for Claude Cowork is no longer available.** It was a time-limited pilot. The pilot ended and support stopped on 15 August 2026. The embedded Nutrient Web Viewer license has since expired, so installed copies no longer open documents.
+>
+> Use [Nutrient MCP](https://www.nutrient.io/api/mcp-server-pdf-automation-llm/) instead. This repository stays up for reference only.
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/MCP-server-orange)](https://modelcontextprotocol.io)
